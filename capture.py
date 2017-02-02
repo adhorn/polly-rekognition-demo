@@ -26,7 +26,7 @@ pya = pyaudio.PyAudio()
 # and open Preview to see the image
 def take_photo(save=False):
     speak("Please point your external webcam at the subject")
-    sleep(1)
+    sleep(5)
     speak("Taking a photo")
     vidcap=cv2.VideoCapture()   
     vidcap.open(0)
@@ -183,7 +183,7 @@ def create_verbal_response_face(reko_response):
 
 def save_image_with_bounding_boxes(encoded_image, reko_response):
     encoded_image=np.fromstring(encoded_image,np.uint8);
-    image = cv2.imdecode(encoded_image, cv2.CV_LOAD_IMAGE_COLOR)
+    image = cv2.imdecode(encoded_image, cv2.IMREAD_COLOR)
     image_height, image_width = image.shape[:2]
     i = 0
     for mydict in reko_response['FaceDetails']:
