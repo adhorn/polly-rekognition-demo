@@ -11,8 +11,14 @@ import pyaudio
 import inflect
 from time import sleep
 
-region = 'eu-west-1' # change this to switch to another AWS region
-colors = [ ['green', 0,255,0], ['blue', 255,0,0], ['red', 0,0,255], ['purple', 255,0,255], ['silver', 192,192,192] ]
+region = 'eu-west-1'  # change this to switch to another AWS region
+colors = [
+    ['green', 0, 255, 0],
+    ['blue', 255, 0, 0],
+    ['red', 0, 0, 255],
+    ['purple', 255, 0, 255],
+    ['silver', 192, 192, 192]
+]
 
 
 polly = boto3.client("polly", region_name=region)
@@ -22,23 +28,25 @@ pya = pyaudio.PyAudio()
 
 
 # Take a photo with USB webcam
-# Set save to True if you want to save the image (in the current working directory)
+# Set save to True if you want
+# to save the image (in the current working directory)
 # and open Preview to see the image
 def take_photo(save=False):
     speak("Please point your external webcam at the subject")
     sleep(5)
     speak("Taking a photo")
-    vidcap=cv2.VideoCapture()   
+    vidcap = cv2.VideoCapture()
     vidcap.open(0)
     retval, image = vidcap.retrieve()
     vidcap.release()
-    small = cv2.resize(image, (0,0), fx=0.75, fy=0.75) 
-    if save: 
+    small = cv2.resize(image, (0,0), fx=0.75, fy=0.75)
+    if save:
         cv2.imwrite('image.png', small)
         os.system('open -a Preview image.png')
-    retval, encoded_image = cv2.imencode('.png',small)
+    retval, encoded_image = cv2.imencode('.png', small)
     encoded_image_bytes = encoded_image.tobytes()
     return encoded_image_bytes
+
 
 # Read image from file
 def read_image(filename):
@@ -51,20 +59,31 @@ def read_image(filename):
             print "I/O error({0}): {1}".format(e.errno, e.strerror)
             exit(-1)
 
-# Provide a string and an optional voice attribute and play the streamed audio response 
+
+# Provide a string and an optional voice attribute
+# and play the streamed audio response
 # Defaults to the Salli voice
 def speak(text_string, voice="Joanna"):
     try:
         # Request speech synthesis
-        response = polly.synthesize_speech(Text=text_string, 
-            TextType="text", OutputFormat="pcm", VoiceId=voice)
+        response = polly.synthesize_speech(
+            Text=text_string,
+            TextType="text",
+            OutputFormat="pcm",
+            VoiceId=voice
+        )
     except (BotoCoreError, ClientError) as error:
         # The service returned an error, exit gracefully
         print(error)
         exit(-1)
     # Access the audio stream from the response
     if "AudioStream" in response:
-        stream = pya.open(format=pya.get_format_from_width(width=2), channels=1, rate=16000, output=True)
+        stream = pya.open(
+            format=pya.get_format_from_width(width=2),
+            channels=1,
+            rate=16000,
+            output=True
+        )
         stream.write(response['AudioStream'].read())
         sleep(1)
         stream.stop_stream()
@@ -74,7 +93,8 @@ def speak(text_string, voice="Joanna"):
         print("Could not stream audio")
         return(False)
 
-# Amazon Rekognition label detection 
+
+# Amazon Rekognition label detection
 def reko_detect_labels(image_bytes):
     print "Calling Amazon Rekognition: detect_labels"
 #   speak("Detecting labels with Amazon Recognition")
@@ -87,6 +107,7 @@ def reko_detect_labels(image_bytes):
     )
     return response
 
+
 # rekognition facial detection
 def reko_detect_faces(image_bytes):
     print "Calling Amazon Rekognition: detect_faces"
@@ -96,11 +117,18 @@ def reko_detect_faces(image_bytes):
         },
         Attributes=['ALL']
     )
-    print json.dumps(response, sort_keys=True, indent=4)
+    print json.dumps(
+        response,
+        sort_keys=True,
+        indent=4
+    )
     return response
 
-# create verbal response describing the detected lables in the response from Rekognition
-# there needs to be more than one lable right now, otherwise you'll get a leading 'and'
+
+# create verbal response describing the detected
+# lables in the response from Rekognition
+# there needs to be more than one lable right now,
+# otherwise you'll get a leading 'and'
 def create_verbal_response_labels(reko_response):
     mystring = "I detected the following labels: "
     humans = False
@@ -121,9 +149,10 @@ def create_verbal_response_labels(reko_response):
             else:
                 newstring = "and %s. " % (mydict['Name'].lower())
                 mystring = mystring + newstring
-            if ('Human' in mydict.values()) or ('Person' in mydict.values()) :
+            if ('Human' in mydict.values()) or ('Person' in mydict.values()):
                 humans = True
     return humans, mystring
+
 
 def create_verbal_response_face(reko_response):
     mystring = ""
@@ -131,8 +160,8 @@ def create_verbal_response_face(reko_response):
     persons = len(reko_response['FaceDetails'])
     if persons == 1:
         mystring = "I can see one person. "
-    else: 
-        mystring = "I can see %d people. " % (persons)
+    else:
+        mystring = "I can see {0} people. ".format(persons)
     i = 0
     for mydict in reko_response['FaceDetails']:
         # Boolean True|False values for these facial features
@@ -142,34 +171,60 @@ def create_verbal_response_face(reko_response):
         mustache = mydict['Mustache']['Value']
         smile = mydict['Smile']['Value']
         if persons == 1:
-            mystring = mystring + "The person is %s. " % (mydict['Gender']['Value'].lower())
+            mystring = mystring + "The person is {0}. ".format(
+                mydict['Gender']['Value'].lower()
+            )
         else:
-            mystring = mystring + "The %s person is %s. " % (p.number_to_words(p.ordinal(str([i+1]))), mydict['Gender']['Value'].lower())
+            mystring = mystring + "The {0} person is {1}. ".format(
+                p.number_to_words(p.ordinal(str([i + 1]))),
+                mydict['Gender']['Value'].lower()
+            )
         if mydict['Gender']['Value'] == 'Male':
             he_she = 'he'
         else:
             he_she = 'she'
         print "Person %d (%s):" % (i+1, colors[i][0])
-        print "\tGender: %s\t(%.2f)" % (mydict['Gender']['Value'], mydict['Gender']['Confidence'])
-        print "\tEyeglasses: %s\t(%.2f)" % (eyeglasses, mydict['Eyeglasses']['Confidence'])
-        print "\tSunglasses: %s\t(%.2f)" % (sunglasses, mydict['Sunglasses']['Confidence'])
+        print "\tGender: %s\t(%.2f)" % (
+            mydict['Gender']['Value'],
+            mydict['Gender']['Confidence']
+        )
+        print "\tEyeglasses: %s\t(%.2f)" % (
+            eyeglasses,
+            mydict['Eyeglasses']['Confidence']
+        )
+        print "\tSunglasses: %s\t(%.2f)" % (
+            sunglasses,
+            mydict['Sunglasses']['Confidence']
+        )
         print "\tSmile: %s\t(%.2f)" % (smile, mydict['Smile']['Confidence'])
-        if eyeglasses == True and sunglasses == True:
-            mystring = mystring + "%s is wearing glasses. " % (he_she.capitalize(), )
-        elif eyeglasses == True and sunglasses == False:
-            mystring = mystring + "%s is wearing spectacles. " % (he_she.capitalize(), )
-        elif eyeglasses == False and sunglasses == True:
-            mystring = mystring + "%s is wearing sunglasses. " % (he_she.capitalize(), )
+        if eyeglasses is True and sunglasses is True:
+            mystring = mystring + "%s is wearing glasses. " % (
+                he_she.capitalize(),
+            )
+        elif eyeglasses is True and sunglasses is False:
+            mystring = mystring + "%s is wearing spectacles. " % (
+                he_she.capitalize(),
+            )
+        elif eyeglasses is False and sunglasses is True:
+            mystring = mystring + "%s is wearing sunglasses. " % (
+                he_she.capitalize(),
+            )
         if smile:
             true_false = 'is'
         else:
             true_false = 'is not'
-        mystring = mystring + "%s %s smiling. " % (he_she.capitalize(), true_false)
+        mystring = mystring + "%s %s smiling. " % (
+            he_she.capitalize(),
+            true_false
+        )
         print "\tEmotions:"
         j = 0
         for emotion in mydict['Emotions']:
             if j == 0:
-                mystring = mystring + "%s looks %s. " % (he_she.capitalize(), emotion['Type'].lower())
+                mystring = mystring + "%s looks %s. " % (
+                    he_she.capitalize(),
+                    emotion['Type'].lower()
+                )
             print "\t\t%s\t(%.2f)" % (emotion['Type'], emotion['Confidence'])
             j += 1
         # Find bounding box for this face
@@ -178,12 +233,19 @@ def create_verbal_response_face(reko_response):
         top = mydict['BoundingBox']['Top']
         width = mydict['BoundingBox']['Width']
         i += 1
-        
+
     return mystring
 
+
 def save_image_with_bounding_boxes(encoded_image, reko_response):
-    encoded_image=np.fromstring(encoded_image,np.uint8);
-    image = cv2.imdecode(encoded_image, cv2.IMREAD_COLOR)
+    encoded_image = np.fromstring(
+        encoded_image,
+        np.uint8
+    )
+    image = cv2.imdecode(
+        encoded_image,
+        cv2.IMREAD_COLOR
+    )
     image_height, image_width = image.shape[:2]
     i = 0
     for mydict in reko_response['FaceDetails']:
@@ -193,21 +255,47 @@ def save_image_with_bounding_boxes(encoded_image, reko_response):
         top = mydict['BoundingBox']['Top']
         width = mydict['BoundingBox']['Width']
         # draw this bounding box
-        image = draw_bounding_box(image, image_width, image_height, width, height, top, left, colors[i])
-        i += 1 
+        image = draw_bounding_box(
+            image,
+            image_width,
+            image_height,
+            width,
+            height,
+            top,
+            left,
+            colors[i]
+        )
+        i += 1
     # write the image to a file
     cv2.imwrite('face_bounding_boxes.jpg', image)
     os.system('open -a Preview face_bounding_boxes.jpg')
 
 
 # draw bounding boxe around one face
-def draw_bounding_box(cv_img, cv_img_width, cv_img_height, width, height, top, left, color):
+def draw_bounding_box(
+    cv_img, cv_img_width, cv_img_height, width, height, top, left, color
+):
     # calculate bounding box coordinates top-left - x,y, bottom-right - x,y
     width_pixels = int(width * cv_img_width)
     height_pixels = int(height * cv_img_height)
     left_pixel = int(left * cv_img_width)
     top_pixel = int(top * cv_img_height)
-    cv2.rectangle(cv_img,(left_pixel, top_pixel),(left_pixel+width_pixels, top_pixel+height_pixels),(color[1],color[2],color[3]),2)
+    cv2.rectangle(
+        cv_img, (
+            left_pixel,
+            top_pixel
+            ),
+        (
+            left_pixel + width_pixels,
+            top_pixel + height_pixels
+        ),
+        (
+            color[1],
+            color[2],
+            color[3]
+        ),
+        2
+    )
     return cv_img
 
 
@@ -220,12 +308,12 @@ if len(argv) == 1:
     encoded_image = take_photo(save=True)
 elif len(argv) == 2:
     print "opening image in file: ", argv[1]
-    encoded_image=read_image(argv[1])
+    encoded_image = read_image(argv[1])
 else:
     print "Use with no arguments to take a photo with the camera, or one argument to use a saved image"
     exit(-1)
 
-labels=reko_detect_labels(encoded_image)
+labels = reko_detect_labels(encoded_image)
 humans, labels_response_string = create_verbal_response_labels(labels)
 print labels_response_string
 speak(labels_response_string)
@@ -240,5 +328,3 @@ if humans:
     speak(faces_response_string)
 else:
     print "No humans detected. Skipping facial recognition"
-    
-
