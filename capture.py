@@ -39,7 +39,7 @@ def take_photo(save=False):
     vidcap.open(0)
     retval, image = vidcap.retrieve()
     vidcap.release()
-    small = cv2.resize(image, (0,0), fx=0.75, fy=0.75)
+    small = cv2.resize(image, (0, 0), fx=0.75, fy=0.75)
     if save:
         cv2.imwrite('image.png', small)
         os.system('open -a Preview image.png')
@@ -50,14 +50,9 @@ def take_photo(save=False):
 
 # Read image from file
 def read_image(filename):
-    try:
-        fin = open(filename, 'r')
-        encoded_image_bytes = fin.read()
-        fin.close()
+    with open(filename, 'r') as f:
+        encoded_image_bytes = f.read()
         return encoded_image_bytes
-    except IOError as e:
-            print "I/O error({0}): {1}".format(e.errno, e.strerror)
-            exit(-1)
 
 
 # Provide a string and an optional voice attribute
@@ -96,7 +91,7 @@ def speak(text_string, voice="Joanna"):
 
 # Amazon Rekognition label detection
 def reko_detect_labels(image_bytes):
-    print "Calling Amazon Rekognition: detect_labels"
+    print("Calling Amazon Rekognition: detect_labels")
 #   speak("Detecting labels with Amazon Recognition")
     response = reko.detect_labels(
         Image={
@@ -110,17 +105,19 @@ def reko_detect_labels(image_bytes):
 
 # rekognition facial detection
 def reko_detect_faces(image_bytes):
-    print "Calling Amazon Rekognition: detect_faces"
+    print("Calling Amazon Rekognition: detect_faces")
     response = reko.detect_faces(
         Image={
             'Bytes': image_bytes
         },
         Attributes=['ALL']
     )
-    print json.dumps(
-        response,
-        sort_keys=True,
-        indent=4
+    print(
+        json.dumps(
+            response,
+            sort_keys=True,
+            indent=4
+        )
     )
     return response
 
@@ -130,111 +127,111 @@ def reko_detect_faces(image_bytes):
 # there needs to be more than one lable right now,
 # otherwise you'll get a leading 'and'
 def create_verbal_response_labels(reko_response):
-    mystring = "I detected the following labels: "
+    verbal_response = "I detected the following labels: "
     humans = False
-    labels = len(reko_response['Labels'])
-    if labels == 0:
-        mystring = "I cannot detect anything."
+    len_labels = len(reko_response['Labels'])
+    if len_labels == 0:
+        verbal_response = "I cannot detect anything."
     else:
         i = 0
-        for mydict in reko_response['Labels']:
+        for label in reko_response['Labels']:
             i += 1
-            if mydict['Name'] == 'People':
+            if label['Name'] == 'People':
                 humans = True
                 continue
-            print "%s\t(%.2f)" % (mydict['Name'], mydict['Confidence'])
-            if i < labels:
-                newstring = "%s, " % (mydict['Name'].lower())
-                mystring = mystring + newstring
+            print "%s\t(%.2f)" % (label['Name'], label['Confidence'])
+            if i < len_labels:
+                newstring = "%s, " % (label['Name'].lower())
+                verbal_response = verbal_response + newstring
             else:
-                newstring = "and %s. " % (mydict['Name'].lower())
-                mystring = mystring + newstring
-            if ('Human' in mydict.values()) or ('Person' in mydict.values()):
+                newstring = "and %s. " % (label['Name'].lower())
+                verbal_response = verbal_response + newstring
+            if ('Human' in label.values()) or ('Person' in label.values()):
                 humans = True
-    return humans, mystring
+    return humans, verbal_response
 
 
 def create_verbal_response_face(reko_response):
-    mystring = ""
+    verbal_response = ""
 
     persons = len(reko_response['FaceDetails'])
     if persons == 1:
-        mystring = "I can see one person. "
+        verbal_response = "I can see one person. "
     else:
-        mystring = "I can see {0} people. ".format(persons)
+        verbal_response = "I can see {0} people. ".format(persons)
     i = 0
-    for mydict in reko_response['FaceDetails']:
+    for face_detail in reko_response['FaceDetails']:
         # Boolean True|False values for these facial features
-        beard = mydict['Beard']['Value']
-        eyeglasses = mydict['Eyeglasses']['Value']
-        sunglasses = mydict['Sunglasses']['Value']
-        mustache = mydict['Mustache']['Value']
-        smile = mydict['Smile']['Value']
+        beard = face_detail['Beard']['Value']
+        eyeglasses = face_detail['Eyeglasses']['Value']
+        sunglasses = face_detail['Sunglasses']['Value']
+        mustache = face_detail['Mustache']['Value']
+        smile = face_detail['Smile']['Value']
         if persons == 1:
-            mystring = mystring + "The person is {0}. ".format(
-                mydict['Gender']['Value'].lower()
+            verbal_response = verbal_response + "The person is {0}. ".format(
+                face_detail['Gender']['Value'].lower()
             )
         else:
-            mystring = mystring + "The {0} person is {1}. ".format(
+            verbal_response = verbal_response + "The {0} person is {1}. ".format(
                 p.number_to_words(p.ordinal(str([i + 1]))),
-                mydict['Gender']['Value'].lower()
+                face_detail['Gender']['Value'].lower()
             )
-        if mydict['Gender']['Value'] == 'Male':
+        if face_detail['Gender']['Value'] == 'Male':
             he_she = 'he'
         else:
             he_she = 'she'
         print "Person %d (%s):" % (i+1, colors[i][0])
         print "\tGender: %s\t(%.2f)" % (
-            mydict['Gender']['Value'],
-            mydict['Gender']['Confidence']
+            face_detail['Gender']['Value'],
+            face_detail['Gender']['Confidence']
         )
         print "\tEyeglasses: %s\t(%.2f)" % (
             eyeglasses,
-            mydict['Eyeglasses']['Confidence']
+            face_detail['Eyeglasses']['Confidence']
         )
         print "\tSunglasses: %s\t(%.2f)" % (
             sunglasses,
-            mydict['Sunglasses']['Confidence']
+            face_detail['Sunglasses']['Confidence']
         )
-        print "\tSmile: %s\t(%.2f)" % (smile, mydict['Smile']['Confidence'])
+        print "\tSmile: %s\t(%.2f)" % (smile, face_detail['Smile']['Confidence'])
         if eyeglasses is True and sunglasses is True:
-            mystring = mystring + "%s is wearing glasses. " % (
+            verbal_response = verbal_response + "%s is wearing glasses. " % (
                 he_she.capitalize(),
             )
         elif eyeglasses is True and sunglasses is False:
-            mystring = mystring + "%s is wearing spectacles. " % (
+            verbal_response = verbal_response + "%s is wearing spectacles. " % (
                 he_she.capitalize(),
             )
         elif eyeglasses is False and sunglasses is True:
-            mystring = mystring + "%s is wearing sunglasses. " % (
+            verbal_response = verbal_response + "%s is wearing sunglasses. " % (
                 he_she.capitalize(),
             )
         if smile:
             true_false = 'is'
         else:
             true_false = 'is not'
-        mystring = mystring + "%s %s smiling. " % (
+        verbal_response = verbal_response + "%s %s smiling. " % (
             he_she.capitalize(),
             true_false
         )
         print "\tEmotions:"
         j = 0
-        for emotion in mydict['Emotions']:
+        for emotion in face_detail['Emotions']:
             if j == 0:
-                mystring = mystring + "%s looks %s. " % (
+                verbal_response = verbal_response + "%s looks %s. " % (
                     he_she.capitalize(),
                     emotion['Type'].lower()
                 )
             print "\t\t%s\t(%.2f)" % (emotion['Type'], emotion['Confidence'])
             j += 1
         # Find bounding box for this face
-        height = mydict['BoundingBox']['Height']
-        left = mydict['BoundingBox']['Left']
-        top = mydict['BoundingBox']['Top']
-        width = mydict['BoundingBox']['Width']
+        height = face_detail['BoundingBox']['Height']
+        left = face_detail['BoundingBox']['Left']
+        top = face_detail['BoundingBox']['Top']
+        width = face_detail['BoundingBox']['Width']
         i += 1
 
-    return mystring
+    return verbal_response
 
 
 def save_image_with_bounding_boxes(encoded_image, reko_response):
@@ -273,7 +270,8 @@ def save_image_with_bounding_boxes(encoded_image, reko_response):
 
 # draw bounding boxe around one face
 def draw_bounding_box(
-    cv_img, cv_img_width, cv_img_height, width, height, top, left, color
+    cv_img, cv_img_width, cv_img_height,
+    width, height, top, left, color
 ):
     # calculate bounding box coordinates top-left - x,y, bottom-right - x,y
     width_pixels = int(width * cv_img_width)
